@@ -1,105 +1,129 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from deepface import DeepFace
-import base64
 import cv2
 import numpy as np
+import logging
+import os
+import json
+from typing import Dict
+from scipy.spatial.distance import cosine
 
+# ---------------- ENV CONFIG ----------------
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["TF_NUM_INTRAOP_THREADS"] = "1"
+os.environ["TF_NUM_INTEROP_THREADS"] = "1"
+
+# ---------------- APP SETUP ----------------
 app = FastAPI()
+logging.basicConfig(level=logging.INFO)
 
-class ImageData(BaseModel):
-    image: str
-    user_id: str = None
+# ---------------- STARTUP EVENT ----------------
+@app.on_event("startup")
+def preload_models():
+    logging.info("Preloading Facenet model...")
+    DeepFace.build_model("Facenet")
+    logging.info("Facenet model loaded!")
 
-class CompareData(BaseModel):
-    image: str
-    stored_embeddings: dict
-
-def decode_image(base64_str):
-    """Convert base64 string to OpenCV image"""
-    img_bytes = base64.b64decode(base64_str.split(",")[1])
-    img_array = np.frombuffer(img_bytes, np.uint8)
-    return cv2.imdecode(img_array, cv2.IMREAD_COLOR)
-
+# ---------------- ROUTES ----------------
 @app.post("/extract-embedding")
-def extract_embedding(data: ImageData):
-    """Extract face embedding from image"""
+async def extract_embedding(
+    image: UploadFile = File(...),
+    user_id: str = Form(...)
+):
+    """Extract face embedding from uploaded image"""
     try:
-        img = decode_image(data.image)
-        
-        # Extract embedding (converts face to 128 numbers)
+        img_bytes = await image.read()
+        img_array = np.frombuffer(img_bytes, np.uint8)
+        img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+        if img is None:
+            raise ValueError("Failed to decode image")
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+        logging.info(f"Extracting embedding for user {user_id}")
         result = DeepFace.represent(
             img_path=img,
             model_name="Facenet",
-            enforce_detection=True
+            detector_backend="opencv",
+            enforce_detection=False,
+            align=True
         )
-        
-        embedding = result[0]["embedding"]
-        
-        return {
-            "success": True,
-            "embedding": embedding,
-            "user_id": data.user_id
-        }
-        
-    except ValueError as e:
-        raise HTTPException(400, f"Invalid image format: {str(e)}")
+
+        if not result or "embedding" not in result[0]:
+            raise ValueError("No embedding generated")
+
+        return {"success": True, "embedding": result[0]["embedding"], "user_id": user_id}
+
     except Exception as e:
-        raise HTTPException(500, f"Face extraction failed: {str(e)}")
+        logging.error(f"Embedding extraction failed: {e}")
+        raise HTTPException(500, "Face extraction failed")
+
 
 @app.post("/compare-embeddings")
-def compare_embeddings(data: CompareData):
-    """Compare new image with stored embeddings"""
+async def compare_embeddings(
+    image: UploadFile = File(...),
+    stored_embeddings: str = Form(...),
+):
+    """
+    Compare uploaded face image against stored embeddings.
+    `stored_embeddings` should be a JSON string {user_id: embedding}.
+    """
     try:
-        # Extract embedding from new image
-        img = decode_image(data.image)
+        # Convert stored embeddings JSON string to dict
+        try:
+            stored_embeddings: Dict[str, list] = json.loads(stored_embeddings)
+        except Exception:
+            raise HTTPException(400, "Invalid stored embeddings format")
+
+        if not stored_embeddings:
+            raise HTTPException(404, "No enrolled faces found")
+
+        # Read image
+        img_bytes = await image.read()
+        img_array = np.frombuffer(img_bytes, np.uint8)
+        img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+        if img is None:
+            raise ValueError("Failed to decode image")
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+        # Generate embedding for the uploaded image
+        logging.info("Generating embedding for comparison")
         new_embedding = DeepFace.represent(
             img_path=img,
             model_name="Facenet",
-            enforce_detection=True
+            detector_backend="opencv",
+            enforce_detection=False,
+            align=True
         )[0]["embedding"]
-        
-        # Get all stored embeddings from request
-        stored_embeddings = data.stored_embeddings
-        
-        if not stored_embeddings:
-            raise HTTPException(404, "No enrolled faces found")
-        
-        # Find best match using cosine distance
-        from scipy.spatial.distance import cosine
-        
+
         best_match_id = None
-        best_confidence = 0
-        
-        for user_id, stored_embedding in stored_embeddings.items():
-            distance = cosine(new_embedding, stored_embedding)
-            confidence = round(1 - distance, 2)
-            
+        best_confidence = 0.0
+
+        for uid, emb in stored_embeddings.items():
+            distance = cosine(new_embedding, emb)
+            confidence = round(1 - distance, 3)
             if confidence > best_confidence:
                 best_confidence = confidence
-                best_match_id = user_id
-        
-        # Confidence threshold (60%)
+                best_match_id = uid
+
         if best_confidence < 0.60:
-            raise HTTPException(404, "No match found - confidence too low")
-        
-        return {
-            "user_id": best_match_id,
-            "confidence": best_confidence
-        }
-        
-    except ValueError as e:
-        raise HTTPException(400, f"Invalid image format: {str(e)}")
+            raise HTTPException(404, "Face not recognized")
+
+        logging.info(f"Best match: {best_match_id} with confidence {best_confidence}")
+        return {"user_id": best_match_id, "confidence": best_confidence}
+
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, f"Face comparison failed: {str(e)}")
+        logging.error(f"Face comparison failed: {e}")
+        raise HTTPException(500, "Face comparison failed")
+
 
 @app.get("/health")
 def health_check():
-    """Health check endpoint"""
     return {
         "status": "healthy",
         "service": "face-recognition",
-        "model": "Facenet"
+        "model": "Facenet",
+        "detector": "opencv"
     }
