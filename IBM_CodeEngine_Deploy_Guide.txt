@@ -1,0 +1,72 @@
+# IBM Code Engine Deployment Guide
+# Face Recognition Project
+
+## ✅ What Works on Code Engine
+IBM Code Engine runs individual container images — NOT docker-compose.
+Deploy backend and ai-services as two separate "Applications" in Code Engine.
+
+---
+
+## Step 1: Install IBM Cloud CLI
+Download from: https://cloud.ibm.com/docs/cli
+Then install the Code Engine plugin:
+  ibmcloud plugin install code-engine
+
+---
+
+## Step 2: Login & Setup Container Registry
+  ibmcloud login
+  ibmcloud cr login
+  ibmcloud cr namespace-add <your-namespace>
+
+---
+
+## Step 3: Build & Push Backend Image
+Run from your project ROOT folder:
+
+  docker build -f backend.Dockerfile -t us.icr.io/<your-namespace>/face-backend:latest .
+  docker push us.icr.io/<your-namespace>/face-backend:latest
+
+---
+
+## Step 4: Build & Push AI Services Image
+  docker build -f aiservices.Dockerfile -t us.icr.io/<your-namespace>/face-aiservices:latest .
+  docker push us.icr.io/<your-namespace>/face-aiservices:latest
+
+---
+
+## Step 5: Deploy on Code Engine
+
+  # Target your Code Engine project
+  ibmcloud ce project select --name <your-project-name>
+
+  # Deploy Backend
+  ibmcloud ce application create \
+    --name face-backend \
+    --image us.icr.io/<your-namespace>/face-backend:latest \
+    --port 3000 \
+    --registry-secret icr-secret
+
+  # Deploy AI Services
+  ibmcloud ce application create \
+    --name face-aiservices \
+    --image us.icr.io/<your-namespace>/face-aiservices:latest \
+    --port 8000 \
+    --registry-secret icr-secret
+
+---
+
+## Step 6: Get Public URLs
+  ibmcloud ce application get --name face-backend
+  ibmcloud ce application get --name face-aiservices
+
+Code Engine gives each app a public HTTPS URL automatically.
+Update your backend's API calls to point to the ai-services URL.
+
+---
+
+## ⚠️ Important Notes
+- docker-compose is for LOCAL DEVELOPMENT only
+- Each Code Engine app scales independently
+- Set environment variables using: --env KEY=VALUE flag
+- For .env file secrets, use Code Engine "secrets" or "configmaps"
