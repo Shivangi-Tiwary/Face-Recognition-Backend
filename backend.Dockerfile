@@ -16,7 +16,7 @@ RUN npm ci --only=production
 COPY backend/ ./backend/
 
 # Expose port (update to match your app's port)
-EXPOSE 3000
+EXPOSE 5000
 
 # ⚠️ Update this to your actual entry point file
 CMD ["node", "backend/index.js"]
