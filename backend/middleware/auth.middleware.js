@@ -11,17 +11,14 @@ const upload = multer({
   }
 });
 
-// Rate limiters with proper IPv6 handling
+// Rate limiters
 const registrationLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 5,
   message: { error: "Too many registration attempts. Please try again later." },
   standardHeaders: true,
   legacyHeaders: false,
-  // Use email OR let express-rate-limit handle IP automatically
-  keyGenerator: (req) => {
-    return req.body.email || req.ip; // express-rate-limit handles IPv6 properly
-  }
+  keyGenerator: (req) => req.body.email || req.socket.remoteAddress
 });
 
 const loginLimiter = rateLimit({
@@ -30,9 +27,7 @@ const loginLimiter = rateLimit({
   message: { error: "Too many login attempts. Please try again later." },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
-    return req.body.email || req.ip;
-  }
+  keyGenerator: (req) => req.body.email || req.socket.remoteAddress
 });
 
 const faceAuthLimiter = rateLimit({
@@ -41,7 +36,6 @@ const faceAuthLimiter = rateLimit({
   message: { error: "Too many face authentication attempts. Please try again later." },
   standardHeaders: true,
   legacyHeaders: false
-  // No custom keyGenerator needed - uses req.ip by default (handles IPv6)
 });
 
 // Helper: convert buffer → base64 (for optional use)

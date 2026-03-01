@@ -12,7 +12,12 @@ const userSchema = new mongoose.Schema({
   
   // Metadata
   enrolledAt: Date,
-  lastFaceLogin: Date
+  lastFaceLogin: Date,
+  
+  //otp
+  mfaOtp:      { type: String },
+  mfaOtpExpiry:{ type: Date },
+  mfaVerified: { type: Boolean, default: false }
 }, { timestamps: true });
 
 module.exports = mongoose.model("User", userSchema);
