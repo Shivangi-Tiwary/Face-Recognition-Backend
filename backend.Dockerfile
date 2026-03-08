@@ -19,4 +19,4 @@ COPY backend/ ./backend/
 EXPOSE 5000
 
 # ⚠️ Update this to your actual entry point file
-CMD ["node", "backend/index.js"]
+CMD ["node", "backend/server.js"]
