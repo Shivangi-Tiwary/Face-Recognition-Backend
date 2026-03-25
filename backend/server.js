@@ -14,7 +14,9 @@ app.use(express.json({ limit: "10mb" }));
 
 app.use("/api/auth", require("./routes/auth.routes"));
 app.use("/api/face", require("./routes/face.routes"));
-
+// After your existing routes
+app.use('/api/analytics', require('./routes/analytics.routes'));
+app.use('/api/attendance', require('./routes/attendance.routes'));
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
