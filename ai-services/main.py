@@ -7,6 +7,7 @@ import os
 import json
 from typing import Dict
 from scipy.spatial.distance import cosine
+from functools import lru_cache
 
 # ---------------- ENV CONFIG ----------------
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
@@ -18,12 +19,11 @@ os.environ["TF_NUM_INTEROP_THREADS"] = "1"
 app = FastAPI()
 logging.basicConfig(level=logging.INFO)
 
-# ---------------- STARTUP EVENT ----------------
-@app.on_event("startup")
-def preload_models():
-    logging.info("Preloading Facenet model...")
-    DeepFace.build_model("Facenet")
-    logging.info("Facenet model loaded!")
+# ---------------- LAZY MODEL LOADING ----------------
+@lru_cache()
+def get_model():
+    logging.info("Loading Facenet model...")
+    return DeepFace.build_model("Facenet")
 
 # ---------------- ROUTES ----------------
 @app.post("/extract-embedding")
@@ -31,8 +31,9 @@ async def extract_embedding(
     image: UploadFile = File(...),
     user_id: str = Form(...)
 ):
-    """Extract face embedding from uploaded image"""
     try:
+        model = get_model()
+
         img_bytes = await image.read()
         img_array = np.frombuffer(img_bytes, np.uint8)
         img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
@@ -40,7 +41,6 @@ async def extract_embedding(
             raise ValueError("Failed to decode image")
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-        logging.info(f"Extracting embedding for user {user_id}")
         result = DeepFace.represent(
             img_path=img,
             model_name="Facenet",
@@ -64,12 +64,9 @@ async def compare_embeddings(
     image: UploadFile = File(...),
     stored_embeddings: str = Form(...),
 ):
-    """
-    Compare uploaded face image against stored embeddings.
-    `stored_embeddings` should be a JSON string {user_id: embedding}.
-    """
     try:
-        # Convert stored embeddings JSON string to dict
+        model = get_model()
+
         try:
             stored_embeddings: Dict[str, list] = json.loads(stored_embeddings)
         except Exception:
@@ -78,7 +75,6 @@ async def compare_embeddings(
         if not stored_embeddings:
             raise HTTPException(404, "No enrolled faces found")
 
-        # Read image
         img_bytes = await image.read()
         img_array = np.frombuffer(img_bytes, np.uint8)
         img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
@@ -86,8 +82,6 @@ async def compare_embeddings(
             raise ValueError("Failed to decode image")
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-        # Generate embedding for the uploaded image
-        logging.info("Generating embedding for comparison")
         new_embedding = DeepFace.represent(
             img_path=img,
             model_name="Facenet",
@@ -109,7 +103,6 @@ async def compare_embeddings(
         if best_confidence < 0.60:
             raise HTTPException(404, "Face not recognized")
 
-        logging.info(f"Best match: {best_match_id} with confidence {best_confidence}")
         return {"user_id": best_match_id, "confidence": best_confidence}
 
     except HTTPException:
