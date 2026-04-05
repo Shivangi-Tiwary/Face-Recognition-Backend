@@ -2,13 +2,16 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Copy requirements first (better layer caching)
-COPY ai-services/requirements.txt ./requirements.txt
+# Install system dependencies for OpenCV
+RUN apt-get update && apt-get install -y \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
 
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy rest of FastAPI code
-COPY ai-services/ .
+COPY . .
 
 EXPOSE 7860
 
