@@ -18,7 +18,6 @@ const registrationLimiter = rateLimit({
   message: { error: "Too many registration attempts. Please try again later." },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.body.email || req.socket.remoteAddress
 });
 
 const loginLimiter = rateLimit({
@@ -27,7 +26,6 @@ const loginLimiter = rateLimit({
   message: { error: "Too many login attempts. Please try again later." },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.body.email || req.socket.remoteAddress
 });
 
 const faceAuthLimiter = rateLimit({
@@ -35,8 +33,12 @@ const faceAuthLimiter = rateLimit({
   max: 20,
   message: { error: "Too many face authentication attempts. Please try again later." },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
 });
+
+
+
+
 
 // Helper: convert buffer → base64 (for optional use)
 const bufferToBase64 = (buffer, mimetype) => {

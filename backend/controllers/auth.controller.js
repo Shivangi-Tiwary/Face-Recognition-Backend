@@ -320,8 +320,64 @@ exports.loginWithFace = [
       user.lastFaceLogin = new Date();
       await user.save();
 
+      // ── AUTO MARK ATTENDANCE ──
+      const Attendance = require("../models/Attendance");
+      const now = new Date();
+      const today = now.toISOString().split("T")[0];
+      const hour = now.getHours();
+      const minute = now.getMinutes();
+      const totalMinutes = hour * 60 + minute;
+
+      const workStart = 7 * 60;   // 7:00 AM
+      const workEnd = 19 * 60;    // 7:00 PM
+
+      let attendance = null;
+
+      if (totalMinutes >= workStart && totalMinutes <= workEnd) {
+        // Check if already marked today
+        const existing = await Attendance.findOne({
+          userId: user._id,
+          date: today
+        });
+
+        if (!existing) {
+          // Determine status based on login time
+          let status = "on-time";
+          if (totalMinutes > 12 * 60) {
+            status = "half-day";
+          } else if (totalMinutes > 9 * 60 + 30) {
+            status = "late";
+          }
+
+          attendance = await Attendance.create({
+            userId: user._id,
+            checkIn: now,
+            date: today,
+            status,
+            confidence: data.confidence,
+            location: "Face Login"
+          });
+
+          console.log(`📋 Attendance marked: ${user.name} → ${status}`);
+        } else {
+          attendance = existing;
+          console.log(`📋 Attendance already marked for ${user.name} today`);
+        }
+      } else {
+        console.log(`⏰ Login outside working hours for ${user.name} — attendance not marked`);
+      }
+
       const mfa = await issueMfa(user);
-      res.json({ success: true, ...mfa, confidence: data.confidence });
+      res.json({
+        success: true,
+        ...mfa,
+        confidence: data.confidence,
+        attendance: attendance ? {
+          status: attendance.status,
+          checkIn: attendance.checkIn,
+          alreadyMarked: !!attendance.checkIn
+        } : null
+      });
 
     } catch (err) {
       console.error("❌ FACE LOGIN ERROR:", err.message);
@@ -336,30 +392,6 @@ exports.loginWithFace = [
     }
   }
 ];
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // const User = require("../models/User");
 // const bcrypt = require("bcryptjs");
