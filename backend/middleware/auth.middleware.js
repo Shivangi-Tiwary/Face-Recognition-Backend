@@ -14,7 +14,7 @@ const upload = multer({
 // Rate limiters
 const registrationLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: 25,
   message: { error: "Too many registration attempts. Please try again later." },
   standardHeaders: true,
   legacyHeaders: false,
@@ -22,7 +22,7 @@ const registrationLimiter = rateLimit({
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 25,
   message: { error: "Too many login attempts. Please try again later." },
   standardHeaders: true,
   legacyHeaders: false,
@@ -30,7 +30,7 @@ const loginLimiter = rateLimit({
 
 const faceAuthLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: 25,
   message: { error: "Too many face authentication attempts. Please try again later." },
   standardHeaders: true,
   legacyHeaders: false,
