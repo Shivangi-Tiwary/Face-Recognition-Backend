@@ -32,7 +32,7 @@ async def extract_embedding(
     user_id: str = Form(...)
 ):
     try:
-        model = get_model()
+        get_model()
 
         img_bytes = await image.read()
         img_array = np.frombuffer(img_bytes, np.uint8)
@@ -43,7 +43,7 @@ async def extract_embedding(
 
         result = DeepFace.represent(
             img_path=img,
-            model=model,
+            model_name="Facenet",
             detector_backend="opencv",
             enforce_detection=False,
             align=True
@@ -69,7 +69,7 @@ async def compare_embeddings(
     stored_embeddings: str = Form(...),
 ):
     try:
-        model = get_model()
+        get_model()
 
         try:
             stored_embeddings: Dict[str, list] = json.loads(stored_embeddings)
@@ -88,7 +88,7 @@ async def compare_embeddings(
 
         new_embedding = DeepFace.represent(
             img_path=img,
-            model=model,
+            model_name="Facenet",
             detector_backend="opencv",
             enforce_detection=False,
             align=True
@@ -104,7 +104,9 @@ async def compare_embeddings(
                 best_confidence = confidence
                 best_match_id = uid
 
-        if best_confidence < 0.60:
+        logging.info(f"Best match: {best_match_id} with confidence: {best_confidence}")
+
+        if best_confidence < 0.55:
             raise HTTPException(status_code=404, detail="Face not recognized")
 
         return {
