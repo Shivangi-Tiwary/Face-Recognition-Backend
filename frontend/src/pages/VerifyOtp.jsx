@@ -20,7 +20,7 @@ export default function VerifyOtp() {
       const { data } = await api.post("/auth/verify-otp", { pendingToken, otp });
       localStorage.removeItem("pendingToken");
       login(data.token, data.user);
-      navigate("/chat");
+      navigate("/user");
     } catch (err) {
       setError(err.response?.data?.error || "Invalid OTP");
     } finally {

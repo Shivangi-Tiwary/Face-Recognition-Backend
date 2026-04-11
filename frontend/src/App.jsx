@@ -3,6 +3,7 @@ import { useAuth } from "./context/AuthContext";
 import Login from "./pages/Login";
 import VerifyOtp from "./pages/VerifyOtp";
 import Chat from "./pages/Chat";
+import UserDashboard from "./pages/UserDashboard";
 
 function PrivateRoute({ children }) {
   const { token } = useAuth();
@@ -15,6 +16,8 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/verify-otp" element={<VerifyOtp />} />
+
+        {/* Standalone chat (keep if used outside dashboard) */}
         <Route
           path="/chat"
           element={
@@ -23,6 +26,18 @@ export default function App() {
             </PrivateRoute>
           }
         />
+
+        {/* User Dashboard — all /user/* routes handled inside UserDashboard */}
+        <Route
+          path="/user/*"
+          element={
+            <PrivateRoute>
+              <UserDashboard />
+            </PrivateRoute>
+          }
+        />
+
+        {/* Default redirect */}
         <Route path="*" element={<Navigate to="/login" />} />
       </Routes>
     </BrowserRouter>
